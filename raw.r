@@ -9,7 +9,7 @@ library(XML)
 ### GLOBAL VARIABLES ##########################################################
 
 FIXER_URL = "http://api.fixer.io/"
-BASE = "USD"
+BASE = "EUR"
 CLIST_URL = "http://www.xe.com/iso4217.php"
 CLIST_DF = NA #To be initialized and loaded in cache
 
@@ -90,18 +90,19 @@ GetDist = function(exc0, exc1) {
   names(df)[2:3] = c("Rate0", "Rate1")
   
   # Get the long names of the currencies
-  if ( is.null(nrow(CLIST_DF)) ) {
-    CLIST_DF = GetCurrNames()
+  if ( is.null(nrow(ALL_CLIST)) ) {
+    ALL_CLIST = GetCurrNames()
   }
-  
-  LN = sapply(df$Currency, function(x) {CLIST_DF[CLIST_DF$Code == x, "Long_Name"]})
-  print(LN)
-  LN = unlist(LN)
-  print(LN)
-  LND = data.frame(Code = df$Currency, 
-                   Long_Name = , 
-                   row.names = NULL
-                   )
+  LN = sapply(df$Currency, function(x){
+                                      if (length(ALL_CLIST[ALL_CLIST$Code == x, "Long_Name"]) == 1){ 
+                                          ALL_CLIST[ALL_CLIST$Code == x, "Long_Name"]
+                                      } else {
+                                          "na"
+                                      } 
+                                      })
+  CD = data.frame(Code = df$Currency,
+                  Long_Name = unlist(LN),
+                  row.names = NULL)
   
   # All to all conversion rates
   m0 = sapply(df$Rate0, function(x) {df$Rate0/x})
@@ -116,25 +117,23 @@ GetDist = function(exc0, exc1) {
   colnames(Dist) = df$Currency
   
   return( list(Distance = Dist,
-               Dates = c(exc0$Date, exc1$Date), 
-               CodeDict = LND)
-        )
+               CodeDict = CD)
+  )
 }
 
 
 
-GetClosest = function(dist, curr, n = 5) {
+GetClosest = function(dist, curr, n=5) {
   # Returns the most similar currencies
   
   toplist = dist$Distance[order(dist$Distance[, curr]), curr]
-
-  return( data.frame(Currencies = names(toplist)[2:(1 + n)], 
-                     CurrLong = unlist(sapply(names(toplist)[2:(1 + n)], 
-                                       function(x) {dist$CodeDict[dist$CodeDict$Code == x, "Long_Name"]}
-                                       )), 
-                     Distances = toplist[2:(1 + n)], 
-                     row.names = NULL)
-        )
+  
+  
+  return(data.frame(Code = names(toplist)[2:(1 + n)],
+                    Currency = sapply(names(toplist)[2:(1 + n)], function(x) {dist$CodeDict[dist$CodeDict$Code == x, "Long_Name"]}),
+                    Distance = toplist[2:(1 + n)],
+                    row.names = NULL)
+  )
 }
 
 
@@ -143,9 +142,9 @@ GetClosest = function(dist, curr, n = 5) {
 
 # 'Frankenshock' : 2015-01-15
 # Financial chrisis: 2008 September
-CLIST_DF = GetCurrNames() 
-d0 = GetRates("2015-01-14")
-d1 = GetRates("2015-01-21")
+ALL_CLIST = GetCurrNames() 
+d0 = GetRates("1999-01-04")
+d1 = GetRates("1999-12-31")
 D = GetDist(d0, d1)
 GetClosest(D, "CHF")
 hc = hclust(as.dist(D$Distance))

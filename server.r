@@ -83,7 +83,13 @@ GetDist = function(exc0, exc1) {
   if ( is.null(nrow(ALL_CLIST)) ) {
     ALL_CLIST = GetCurrNames()
   }
-  LN = sapply(df$Currency, function(x){ALL_CLIST[ALL_CLIST$Code == x, "Long_Name"]})
+  LN = sapply(df$Currency, function(x){
+                                        if (length(ALL_CLIST[ALL_CLIST$Code == x, "Long_Name"]) == 1){ 
+                                          ALL_CLIST[ALL_CLIST$Code == x, "Long_Name"]
+                                        } else {
+                                          "na"
+                                        } 
+                                      })
   CD = data.frame(Code = df$Currency,
                   Long_Name = unlist(LN),
                   row.names = NULL)
@@ -111,7 +117,6 @@ GetClosest = function(dist, curr, n) {
   # Returns the most similar currencies
   
   toplist = dist$Distance[order(dist$Distance[, curr]), curr]
-  
   
   return(data.frame(Code = names(toplist)[2:(1 + n)],
                     Currency = sapply(names(toplist)[2:(1 + n)], function(x) {dist$CodeDict[dist$CodeDict$Code == x, "Long_Name"]}),
@@ -151,7 +156,8 @@ shinyServer(function(input, output, session){
     
     if (d0$Date != d1$Date) {
       D = GetDist(d0, d1)
-      updateSelectInput(session, inputId = "SELECTCURR", choices = D$CodeDict$Long_Name)
+      updated_list = sapply(1:nrow(D$CodeDict), function(x) {paste(D$CodeDict[x, "Code"], D$CodeDict[x, "Long_Name"], sep = " - ")})
+      updateSelectInput(session, inputId = "SELECTCURR", choices = updated_list)
       DIST(D)
     } else {
       D = NULL
@@ -189,7 +195,8 @@ shinyServer(function(input, output, session){
     if (is.null(D)) {
       SIMTABLE(SIMTABLE_DEFAULT)
     } else {
-      currid = D$CodeDict[D$CodeDict$Long_Name == input$SELECTCURR, "Code"]
+      #currid = D$CodeDict[D$CodeDict$Long_Name == input$SELECTCURR, "Code"]
+      currid = unlist(strsplit(input$SELECTCURR,  " - ", fixed = TRUE))[1]
       N = min(input$NUMCURR, nrow(D$CodeDict))
       SIMTABLE(GetClosest(D, currid, N))
     }
