@@ -33,18 +33,20 @@ COP,Colombian Peso
 CRC,Costa Rican Colon
 CUP,Cuban Peso
 CVE,Cabo Verde Escudo
+CYP,Cyprus Pound
 CZK,Czech Koruna
 DJF,Djibouti Franc
 DKK,Danish Krone
 DOP,Dominican Peso
 DZD,Algerian Dinar
 EGP,Egyptian Pound
+EEK,Estonian Kroon
 ERN,Eritrea Nakfa
 ETB,Ethiopian Birr
 EUR,Euro
 FJD,Fiji Dollar
 FKP,Falkland Islands Pound
-GBP,Pound Sterling
+GBP,GB Pound Sterling
 GEL,Georgian Lari
 GHS,Ghana Cedi
 GIP,Gibraltar Pound
@@ -80,6 +82,8 @@ LBP,Lebanese Pound
 LKR,Sri Lanka Rupee
 LRD,Liberian Dollar
 LSL,Lesotho Loti
+LTL,Lithuanian Litas
+LVL,Latvian Lats
 LYD,Libyan Dinar
 MAD,Moroccan Dirham
 MDL,Moldovan Leu
@@ -89,6 +93,7 @@ MMK,Myanmar Kyat
 MNT,Mongolian Tugrik
 MOP,Macao Pataca
 MRO,Mauritania Ouguiya
+MTL,Maltese lira
 MUR,Mauritius Rupee
 MVR,Maldives Rufiyaa
 MWK,Malawi Kwacha
@@ -111,6 +116,7 @@ PLN,Poland Zloty
 PYG,Paraguay Guarani
 QAR,Qatari Rial
 RON,Romanian Leu
+ROL,Romanian Leu
 RSD,Serbian Dinar
 RUB,Russian Ruble
 RWF,Rwanda Franc
@@ -121,6 +127,8 @@ SDG,Sudanese Pound
 SEK,Swedish Krona
 SGD,Singapore Dollar
 SHP,Saint Helena Pound
+SIT,Slovenian Tolar
+SKK,Slovak Koruna
 SLL,Sierra Leone
 SOS,Somali Shilling
 SRD,Surinam Dollar
@@ -135,6 +143,7 @@ TMT,Turkmenistan New Manat
 TND,Tunisian Dinar
 TOP,Tonga Pa’anga
 TRY,Turkish Lira
+TRL,Turkish Lira
 TTD,Trinidad and Tobago Dollar
 TWD,New Taiwan Dollar
 TZS,Tanzanian Shilling

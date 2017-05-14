@@ -109,14 +109,19 @@ GetDist = function(exc0, exc1) {
   m1 = sapply(df$Rate1, function(x) {df$Rate1/x})
   
   # Vectors of currency rate changes between time points
-  Diff = m1 - m0
-  
+  # The index is normalized to data at the second time point 
+  Diff = (m1 - m0)/m1
+
   # Obtain cosine distances between currencies
   Dist = apply(Diff, 1, function(x) {apply(Diff, 1, function(y) {DistFunction(x, y)})})
   rownames(Dist) = df$Currency
   colnames(Dist) = df$Currency
+
+  rownames(Diff) = df$Currency
+  colnames(Diff) = df$Currency
   
-  return( list(Distance = Dist,
+  return( list(Difference = Diff,
+               Distance = Dist,
                CodeDict = CD)
   )
 }
@@ -127,13 +132,36 @@ GetClosest = function(dist, curr, n=5) {
   # Returns the most similar currencies
   
   toplist = dist$Distance[order(dist$Distance[, curr]), curr]
+  toplist_names = dist$CodeDict[order(dist$Distance[, curr]), ]
   
   
-  return(data.frame(Code = names(toplist)[2:(1 + n)],
-                    Currency = sapply(names(toplist)[2:(1 + n)], function(x) {dist$CodeDict[dist$CodeDict$Code == x, "Long_Name"]}),
+  return(data.frame(Code = toplist_names$Code[2:(1 + n)],
+                    Currency = toplist_names$Long_Name[2:(1 + n)],
                     Distance = toplist[2:(1 + n)],
                     row.names = NULL)
   )
+}
+
+# calculates the length of the vector
+vlen = function(dist) {
+  cn = dist$CodeDict$Code
+  cl = apply(dist$Difference, 1, function(x) { sqrt(sum(x^2)) })
+  cn = cn[order(cl, decreasing = T)]
+  cl = cl[order(cl, decreasing = T)]
+  return(data.frame(Code = cn, Clen = cl))
+}
+
+# calculates the momentum of the currency
+# sums up the changes relative to each currencies
+# sums up the number of currencies to which the given currency weakened
+vmom = function(dist) {
+  cn = dist$CodeDict$Code
+  cm = apply(dist$Difference, 2, function(x){ sum(x) })
+  cneg = apply(dist$Difference, 2, function(x){ sum(x < 0) })
+  cn = cn[order(cm, decreasing = T)]
+  cneg = cneg[order(cm, decreasing = T)]
+  cm = cm[order(cm, decreasing = T)]
+  return(data.frame(Code = cn, cmom = cm, cneg = cneg))
 }
 
 
@@ -143,9 +171,43 @@ GetClosest = function(dist, curr, n=5) {
 # 'Frankenshock' : 2015-01-15
 # Financial chrisis: 2008 September
 ALL_CLIST = GetCurrNames() 
-d0 = GetRates("1999-01-04")
-d1 = GetRates("1999-12-31")
+d0 = GetRates("2015-01-14")
+d1 = GetRates("2015-01-16")
 D = GetDist(d0, d1)
+L = vlen(D)
+M = vmom(D)
 GetClosest(D, "CHF")
 hc = hclust(as.dist(D$Distance))
 plot(as.dendrogram(hc))
+
+
+library(ggplot2)
+library(ggdendro)
+
+# extract properties of the dendrogram, rectangle type: rectangular lines drawn
+den = dendro_data(hc, type = "rectangle")
+#groups = cutree(hc, h = 0.5)
+#gdf = data.frame(label = names(groups), groups = factor(groups))
+names(M) = c("label", "momentum", "weakness")
+den$labels = merge(den$labels, M, by = "label")
+
+hcplot = ggplot() + 
+  geom_segment(data = segment(den), aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_text(data = label(den), aes(x, y, label = label, color = momentum), size = 6, hjust = 1, angle = 90, nudge_y = -0.02) +
+  #coord_fixed(ratio = 0.5) +
+  #coord_flip() +
+  #scale_y_reverse(expand = c(0.5, 0)) +
+  scale_y_continuous(expand = c(0.2, 0), limits = c(-0.09, NA)) +
+  scale_color_gradient2(low = "blue", mid = "green", high = "red", midpoint = 0) +
+  theme(axis.line.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size = 15),
+        panel.background = element_rect(fill = "white"),
+        panel.grid = element_blank()
+        )
+          
+hcplot
+

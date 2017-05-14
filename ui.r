@@ -9,7 +9,25 @@ library(shiny)
 APPNAME = "CurrClust"
 TITLE = "Currency Clusterer"
 FOOTNOTE = paste(APPNAME, "2017")
-
+Description_l1 = paste("CurrClust calculates the distance between currencies based on cosine similarity.",
+                       "The calculation does not rely on any particular base currency, each currency is compared to all the other currencies.", 
+                       sep = " ")
+Description_l2 = paste("A Momentum value is calculated to each currency. This value indicates how a currency is changing relative to the other currencies.",
+                       "Positive values indicate that the selected currency is getting stronger relative to the rest of currencies, while negative values indicate the opposite of that.",
+                       "Zero or almost zero value indicates that the selected currency changes minimally to the rest of currencies or the changes compared to other currencies are rather balanced.",
+                       sep = " ")
+Description_l3 = paste("The Weakness indicates the number of currencies which are getting stronger than the selected currencies.",
+                       "Zero value indicates that the selected currency is the strongest among all the currencies on the list.",
+                       sep = " ")
+Description_l4 = "How to use:"
+Description_l5 = paste("Pick two dates to select a time interval you are interested in.",
+                       "CurrClust will calculate the changes in exchange rates between these time points and draws a histogram based on the similarities of the directions of the changes.",
+                       "After that, you can select a specific currrencies to view the most similar currencies to that.",
+                       "The resulting table shows the Distance, Momentum and Weakness values.",
+                       sep = " ")
+Description_l6 = paste("CurrClust uses the freely available data of European Central Bank, which include only a limited number of currencies.",
+                       "The data are accessed via the fixer.io API.",
+                       sep = " ")
 
 
 ### MAIN ######################################################################
@@ -95,7 +113,7 @@ shinyUI(fluidPage(
   sidebarLayout(
     
     ### sidebar ###
-    sidebarPanel(width = 3,
+    sidebarPanel(width = 2,
       
       withTags({
         div(
@@ -132,9 +150,9 @@ shinyUI(fluidPage(
     
     
     ### main panel ###
-    mainPanel(width = 9,
+    mainPanel(width = 10,
       
-      column(width = 4, align = "center",
+      column(width = 5, align = "center",
         withTags({
           div(
             class = "MostSimilarOutput",
@@ -144,7 +162,7 @@ shinyUI(fluidPage(
         })  
       ),
       
-      column(width = 8, align = "center",
+      column(width = 7, align = "center",
         withTags({
           div(
             class = "ClustogramOutput",
@@ -165,8 +183,13 @@ shinyUI(fluidPage(
   withTags({
     div(
       class = "description",
-      p("Pick a time interval to get the distances between currencies. The changes in currency exchange rates between the time points are converted into a distance measure which is base independent. In other words, the relationships are not shown against any particular currency but on the whole currency landscape. If you pick up a currency, you will get the most similar currencies with the distance values."),
-      p("Data sources:"),
+      p(Description_l1),
+      p(Description_l2),
+      p(Description_l3),
+      p(Description_l4),
+      p(Description_l5),
+      p(Description_l6),
+      p("Reference to the data sources:"),
       a("fixer.io", href = "http://fixer.io/"),
       br(),
       a("ECB", href = "http://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html")
