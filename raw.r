@@ -113,7 +113,7 @@ GetDist = function(exc0, exc1) {
   Diff = (m1 - m0)/m1
 
   # Obtain cosine distances between currencies
-  Dist = apply(Diff, 1, function(x) {apply(Diff, 1, function(y) {DistFunction(x, y)})})
+  Dist = apply(Diff, 2, function(x) {apply(Diff, 2, function(y) {DistFunction(x, y)})})
   rownames(Dist) = df$Currency
   colnames(Dist) = df$Currency
 
@@ -145,7 +145,7 @@ GetClosest = function(dist, curr, n=5) {
 # calculates the length of the vector
 vlen = function(dist) {
   cn = dist$CodeDict$Code
-  cl = apply(dist$Difference, 1, function(x) { sqrt(sum(x^2)) })
+  cl = apply(dist$Difference, 2, function(x) { sqrt(sum(x^2)) })
   cn = cn[order(cl, decreasing = T)]
   cl = cl[order(cl, decreasing = T)]
   return(data.frame(Code = cn, Clen = cl))

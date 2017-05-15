@@ -101,7 +101,7 @@ GetDist = function(exc0, exc1) {
   Diff = (m1 - m0)/m1
   
   # Obtain cosine distances between currencies
-  Dist = apply(Diff, 1, function(x) {apply(Diff, 1, function(y) {DistFunction(x, y)})})
+  Dist = apply(Diff, 2, function(x) {apply(Diff, 2, function(y) {DistFunction(x, y)})})
   #rownames(Dist) = df$Currency
   colnames(Dist) = df$Label
   
