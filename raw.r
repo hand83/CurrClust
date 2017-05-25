@@ -165,6 +165,35 @@ vmom = function(dist) {
 }
 
 
+# calculates the change in the value of the currency
+# assumes that the average value changes of all currencies equals to one
+value_change = function(exc0, exc1) {
+  # Requires exchange rates at the same base
+  
+  # Inner join of data frames created
+  df = merge(exc0$Exchange, exc1$Exchange, by = "Currency", all = FALSE)
+  names(df)[2:3] = c("Rate0", "Rate1")
+  
+  # All to all conversion rates
+  m1 = sapply(df$Rate1, function(x) {df$Rate1/x})
+  m0 = sapply(df$Rate0, function(x) {df$Rate0/x})
+  rownames(m1) = df$Currency
+  colnames(m1) = df$Currency
+  rownames(m0) = df$Currency
+  colnames(m0) = df$Currency
+  
+  # Ratio of conversion rates at the two time points
+  r = m0/m1
+  n = dim(df)[1]
+  
+  # Calculate the value changes of each currency from the averaged ratios
+  vchange = apply(r, 2, function(x) {n/sum(x)})
+  
+  # Returns percent change in the values
+  return(data.frame(label = df$Currency, index = 100 * (vchange - 1)))
+}
+
+
 
 ### MAIN ######################################################################
 
@@ -174,8 +203,9 @@ ALL_CLIST = GetCurrNames()
 d0 = GetRates("2015-01-14")
 d1 = GetRates("2015-01-16")
 D = GetDist(d0, d1)
-L = vlen(D)
-M = vmom(D)
+V = value_change(d0, d1)
+#L = vlen(D)
+#M = vmom(D)
 GetClosest(D, "CHF")
 hc = hclust(as.dist(D$Distance))
 plot(as.dendrogram(hc))
@@ -188,12 +218,12 @@ library(ggdendro)
 den = dendro_data(hc, type = "rectangle")
 #groups = cutree(hc, h = 0.5)
 #gdf = data.frame(label = names(groups), groups = factor(groups))
-names(M) = c("label", "momentum", "weakness")
-den$labels = merge(den$labels, M, by = "label")
+#names(M) = c("label", "momentum", "weakness")
+den$labels = merge(den$labels, V, by = "label")
 
 hcplot = ggplot() + 
   geom_segment(data = segment(den), aes(x = x, y = y, xend = xend, yend = yend)) +
-  geom_text(data = label(den), aes(x, y, label = label, color = momentum), size = 6, hjust = 1, angle = 90, nudge_y = -0.02) +
+  geom_text(data = label(den), aes(x, y, label = label, color = index), size = 6, hjust = 1, angle = 90, nudge_y = -0.02) +
   #coord_fixed(ratio = 0.5) +
   #coord_flip() +
   #scale_y_reverse(expand = c(0.5, 0)) +
@@ -210,4 +240,7 @@ hcplot = ggplot() +
         )
           
 hcplot
+
+
+
 

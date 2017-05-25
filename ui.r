@@ -12,18 +12,18 @@ FOOTNOTE = paste(APPNAME, "2017")
 Description_l1 = paste("CurrClust calculates the distance between currencies based on cosine similarity.",
                        "The calculation does not rely on any particular base currency, each currency is compared to all the other currencies.", 
                        sep = " ")
-Description_l2 = paste("A Momentum value is calculated to each currency. This value indicates how a currency is changing relative to the other currencies.",
+Description_l2 = paste("An index is calculated for each currency. This indicates the per-cent changes in the value of the given currency between the time points.",
                        "Positive values indicate that the selected currency is getting stronger relative to the rest of currencies, while negative values indicate the opposite of that.",
                        "Zero or almost zero value indicates that the selected currency changes minimally to the rest of currencies or the changes compared to other currencies are rather balanced.",
+                       "The index is based on the assumption that the net currency changes is be zero for the given set; weakening or strenghtening happens in a balanced way.",
                        sep = " ")
-Description_l3 = paste("The Weakness indicates the number of currencies which are getting stronger than the selected currencies.",
-                       "Zero value indicates that the selected currency is the strongest among all the currencies on the list.",
+Description_l3 = paste("The rank is the position of a currency on the toplist of the strength index.", 
                        sep = " ")
 Description_l4 = "How to use:"
 Description_l5 = paste("Pick two dates to select a time interval you are interested in.",
                        "CurrClust will calculate the changes in exchange rates between these time points and draws a histogram based on the similarities of the directions of the changes.",
                        "After that, you can select a specific currrencies to view the most similar currencies to that.",
-                       "The resulting table shows the Distance, Momentum and Weakness values.",
+                       "The resulting table shows the Distance, Index and Rank values.",
                        sep = " ")
 Description_l6 = paste("CurrClust uses the freely available data of European Central Bank, which include only a limited number of currencies.",
                        "The data are accessed via the fixer.io API.",
@@ -113,7 +113,7 @@ shinyUI(fluidPage(
   sidebarLayout(
     
     ### sidebar ###
-    sidebarPanel(width = 2,
+    sidebarPanel(width = 3,
       
       withTags({
         div(
@@ -150,7 +150,7 @@ shinyUI(fluidPage(
     
     
     ### main panel ###
-    mainPanel(width = 10,
+    mainPanel(width = 9,
       
       column(width = 5, align = "center",
         withTags({
@@ -166,7 +166,7 @@ shinyUI(fluidPage(
         withTags({
           div(
             class = "ClustogramOutput",
-            h4("Similarity relations"),
+            h4("Distance tree"),
             plotOutput("CLUSTOGRAM"),
             htmlOutput("CLUSTOGRAM_MSG")
           )

@@ -32,21 +32,45 @@ GetRates = function(date = "latest") {
   # Rates are against EUR by default
   
   url = paste0(FIXER_URL, date, "?base=", BASE) 
-  ratelist = fromJSON(url)
+  RATELIST = fromJSON(url)
   
-  df = data.frame(Label = names(ratelist$rates),
-                  Rate = unlist(ratelist$rates),
+  DF = data.frame(label = names(RATELIST$rates),
+                  rate = unlist(RATELIST$rates),
                   stringsAsFactors = FALSE,
                   row.names = NULL)
-  df = rbind(df, 
-             data.frame(Label = c(BASE),
-                        Rate = c(1))
+  DF = rbind(DF, 
+             data.frame(label = c(BASE),
+                        rate = c(1))
   )
-  df = df[order(df$Label), ]
+  DF = DF[order(DF$label), ]
   
-  return( list(Exchange = df, 
-               Date = ratelist$date)
+  return( list(Exchange = DF, 
+               Date = RATELIST$date)
   )
+}
+
+
+
+GetMergedData = function(EXC0, EXC1) {
+  # Creates data with conversion rates at two time points
+  # Requires exchange rates with the same base
+  
+  # Inner join of data frames created
+  MERGED = merge(EXC0$Exchange, EXC1$Exchange, by = "label", all = FALSE)
+  names(MERGED)[2:3] = c("rate0", "rate1")
+  
+  # Get long names
+  LN = sapply(MERGED$label, function(x){
+                                        if (length(ALL_CLIST[ALL_CLIST$Code == x, "Long_Name"]) == 1){ 
+                                          ALL_CLIST[ALL_CLIST$Code == x, "Long_Name"]
+                                        } else {
+                                          "na"
+                                        } 
+                                      })
+
+  MERGED$Long_Name = LN
+  MERGED = MERGED[order(MERGED$label), ]
+  return(MERGED)
 }
 
 
@@ -70,78 +94,78 @@ DistFunction = function(x, y) {
 
 
 
-GetDist = function(exc0, exc1) {
-  # Requires exchange rates at the same base
-  
-  # Inner join of data frames created
-  df = merge(exc0$Exchange, exc1$Exchange, by = "Label", all = FALSE)
-  names(df)[2:3] = c("Rate0", "Rate1")
-  
-  # Get the long names of the currencies
-  if ( is.null(nrow(ALL_CLIST)) ) {
-    ALL_CLIST = GetCurrNames()
-  }
-  LN = sapply(df$Label, function(x){
-                                        if (length(ALL_CLIST[ALL_CLIST$Code == x, "Long_Name"]) == 1){ 
-                                          ALL_CLIST[ALL_CLIST$Code == x, "Long_Name"]
-                                        } else {
-                                          "na"
-                                        } 
-                                      })
-  CD = data.frame(Label = df$Label,
-                  Long_Name = unlist(LN),
-                  row.names = NULL)
+GetDist = function(EXC) {
+  # Calculates the distance matrix
+  # Requires the data frame with conversion rates at two time points
   
   # All to all conversion rates
-  m0 = sapply(df$Rate0, function(x) {df$Rate0/x})
-  m1 = sapply(df$Rate1, function(x) {df$Rate1/x})
+  M0 = sapply(EXC$rate0, function(x) {EXC$rate0/x})
+  M1 = sapply(EXC$rate1, function(x) {EXC$rate1/x})
   
   # Vectors of currency rate changes between time points
   # Normalized to the data at the second time point
-  Diff = (m1 - m0)/m1
+  DIFF = (M1 - M0)/M1
   
   # Obtain cosine distances between currencies
-  Dist = apply(Diff, 2, function(x) {apply(Diff, 2, function(y) {DistFunction(x, y)})})
+  DIST = apply(DIFF, 2, function(x) {apply(DIFF, 2, function(y) {DistFunction(x, y)})})
   #rownames(Dist) = df$Currency
-  colnames(Dist) = df$Label
+  colnames(DIST) = EXC$label
+  rownames(DIST) = EXC$label
   
-  return( list(Distance = Dist,
-               Difference = Diff,
-               CodeDict = CD)
-  )
+  return(DIST)
 }
 
 
 
-GetClosest = function(dist, curr, n=5) {
+ValueChanges = function(EXC) {
+  # calculates the change in the value of the currency
+  # assumes that the average value changes of all currencies equals to one
+  # Requires the data frame with conversion rates at two time points
+  
+  # All to all conversion rates
+  M1 = sapply(EXC$rate1, function(x) {EXC$rate1/x})
+  M0 = sapply(EXC$rate0, function(x) {EXC$rate0/x})
+
+  # Ratio of conversion rates at the two time points
+  R01 = M0/M1
+  n = dim(EXC)[1]
+  
+  # Calculate the value changes of each currency from the averaged ratios
+  vchange = apply(R01, 2, function(x) {n/sum(x)})
+  vrank = as.integer(rank(vchange))
+  
+  # Returns percent change in the values
+  return(data.frame(label = EXC$label, index = 100 * (vchange - 1), rank = vrank, stringsAsFactors = F))
+}
+
+
+
+GetClosest = function(DIST, VCH, EXC, curr, n=5) {
   # Returns the most similar currencies
+  # Requires the distance matrix
+  # Requires the value changes data frame
+  # Requires the data frame with conversion rates at two time points
+  # Requires a selected currency in 3 letter code format
   
-  toplist = dist$Distance[order(dist$Distance[, curr]), curr]
-  toplist_names = dist$CodeDict[order(dist$Distance[, curr]), ]
+  ord = order(DIST[, curr])
+  toplist_names = EXC[ord, c("label", "Long_Name")]
+  toplist_dist = DIST[ord, curr]
+  toplist_vch = VCH[ord, c("index", "rank")]
   
   
-  return(data.frame(Label = toplist_names$Label[1:(1 + n)],
+  return(data.frame(Label = toplist_names$label[1:(1 + n)],
                     Currency = toplist_names$Long_Name[1:(1 + n)],
-                    Distance = toplist[1:(1 + n)],
-                    row.names = NULL)
+                    Distance = toplist_dist[1:(1 + n)],
+                    Index = toplist_vch$index[1:(1 + n)],
+                    Rank = toplist_vch$rank[1:(1 + n)],
+                    row.names = NULL,
+                    stringsAsFactors = F)
   )
 }
 
 
 
-GetMomentum = function(dist) {
-  # Determines the Momentum and Weakness of the currencies
-  # Momentum: the sum of changes relative to other currencies
-  # Weakness: the number of currencies to which the actual currencies is getting weaker
-  
-  Label = dist$CodeDict$Label
-  Momentum = apply(dist$Difference, 2, function(x){ sum(x) })
-  Weakness = apply(dist$Difference, 2, function(x){ sum(x < 0) })
-  Label = Label[order(Momentum, decreasing = T)]
-  Weakness = Weakness[order(Momentum, decreasing = T)]
-  Momentum = Momentum[order(Momentum, decreasing = T)]
-  return(data.frame(label = Label, momentum = Momentum, weakness = Weakness))
-}
+
 
 
 
@@ -151,8 +175,7 @@ ALL_CLIST = GetCurrNames()
 
 shinyServer(function(input, output, session){
   
-  DIST = reactiveVal()
-  MOMENTUM = reactiveVal()
+  DATA = reactiveVal()
   WARNING = reactiveVal()
   SIMTABLE = reactiveVal(value = SIMTABLE_DEFAULT)
   
@@ -174,15 +197,17 @@ shinyServer(function(input, output, session){
     WARNING(Warn)
     
     if (d0$Date != d1$Date) {
-      D = GetDist(d0, d1)
-      updated_list = sapply(1:nrow(D$CodeDict), function(x) {paste(D$CodeDict[x, "Label"], D$CodeDict[x, "Long_Name"], sep = " - ")})
+      E = GetMergedData(d0, d1)
+      D = GetDist(E)
+      VCH = ValueChanges(E)
+      #updated_list = apply(E[, c("label", "Long_Name")], 1, function(x) {paste0(x, collapse = " - ")})
+      updated_list = sapply(1:nrow(E), function(x) {paste(E[x, "label"], E[x, "Long_Name"], sep = " - ")})
+      updated_list = unlist(updated_list)
       updateSelectInput(session, inputId = "SELECTCURR", choices = updated_list)
-      DIST(D)
-      MOMENTUM(GetMomentum(D))
+      DATA(list(EXC = E, DIST = D, VALCH = VCH))
     } else {
       updateSelectInput(session, inputId = "SELECTCURR", choices = c("none"))
-      DIST(NULL)
-      MOMENTUM(NULL)
+      DATA(NULL)
     }
     
     SIMTABLE(SIMTABLE_DEFAULT)
@@ -190,19 +215,18 @@ shinyServer(function(input, output, session){
   
   ### Clustogram output ###
   output$CLUSTOGRAM = renderPlot({
-    D = DIST()
-    M = MOMENTUM()
+    D = DATA()
     if (is.null(D)) {
       plot(1, type="n", axes=F, xlab="", ylab="")
     } else {
-      hc = hclust(as.dist(D$Distance), method = "average")
+      hc = hclust(as.dist(D$DIST), method = "average")
       #plot(as.dendrogram(hc))
       den = dendro_data(hc, type = "rectangle")
-      den$labels = merge(den$labels, M, by = "label", sort = F)
+      den$labels = merge(den$labels, D$VALCH, by = "label", sort = F)
       ggplot() + 
         geom_segment(data = segment(den), aes(x = x, y = y, xend = xend, yend = yend)) +
-        geom_text(data = label(den), aes(x, y, label = label, color = momentum), size = 6, hjust = 1, angle = 90, nudge_y = -0.02) +
-        scale_y_continuous(expand = c(0.2, 0), limits = c(-0.09, NA)) +
+        geom_text(data = label(den), aes(x, y, label = label, color = index), size = 5, hjust = 1, angle = 90, nudge_y = -0.02) +
+        scale_y_continuous(expand = c(0.2, 0), limits = c(-0.07, NA)) +
         scale_color_gradient2(low = "blue", mid = "green", high = "red", midpoint = 0) +
         theme(axis.line.x = element_blank(),
               axis.ticks.x = element_blank(),
@@ -228,17 +252,15 @@ shinyServer(function(input, output, session){
   
   ### Fetch most similar currencies ###
   observeEvent(input$SEND_SELECTCURR, {
-    D = DIST()
-    M = MOMENTUM()
+    D = DATA()
     if (is.null(D)) {
       SIMTABLE(SIMTABLE_DEFAULT)
     } else {
       #currid = D$CodeDict[D$CodeDict$Long_Name == input$SELECTCURR, "Code"]
       currid = unlist(strsplit(input$SELECTCURR,  " - ", fixed = TRUE))[1]
       N = min(input$NUMCURR, nrow(D$CodeDict))
-      Closest = GetClosest(D, currid, N)
-      names(M) = c("Label", "Momentum", "Weakness")
-      SIMTABLE(merge(Closest, M, by = "Label", sort = F))
+      Closest = GetClosest(D$DIST, D$VALCH, D$EXC, currid, N)
+      SIMTABLE(Closest)
     }
   })
   
