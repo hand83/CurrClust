@@ -132,7 +132,7 @@ ValueChanges = function(EXC) {
   
   # Calculate the value changes of each currency from the averaged ratios
   vchange = apply(R01, 2, function(x) {n/sum(x)})
-  vrank = as.integer(rank(vchange))
+  vrank = as.integer(rank(-1 * vchange))
   
   # Returns percent change in the values
   return(data.frame(label = EXC$label, index = 100 * (vchange - 1), rank = vrank, stringsAsFactors = F))
