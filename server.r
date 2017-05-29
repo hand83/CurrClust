@@ -127,11 +127,11 @@ ValueChanges = function(EXC) {
   M0 = sapply(EXC$rate0, function(x) {EXC$rate0/x})
 
   # Ratio of conversion rates at the two time points
-  R01 = M0/M1
+  R01 = log(M1) - log(M0)
   n = dim(EXC)[1]
   
   # Calculate the value changes of each currency from the averaged ratios
-  vchange = apply(R01, 2, function(x) {n/sum(x)})
+  vchange = apply(R01, 2, function(x) {exp(sum(x)/n)})
   vrank = as.integer(rank(-1 * vchange))
   
   # Returns percent change in the values

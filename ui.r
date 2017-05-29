@@ -186,6 +186,7 @@ shinyUI(fluidPage(
       p(Description_l1),
       p(Description_l2),
       p(Description_l3),
+      a("To read more about the underlying calculations and the more detailed formulation of the distances and indices.", href = "https://github.com/hand83/CurrClust/blob/master/CurrClust_Description.docx"),
       p(Description_l4),
       p(Description_l5),
       p(Description_l6),

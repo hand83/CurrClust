@@ -3,6 +3,8 @@
 library(jsonlite)
 library(RCurl)
 library(XML)
+library(ggplot2)
+library(ggdendro)
 
 
 
@@ -10,26 +12,15 @@ library(XML)
 
 FIXER_URL = "http://api.fixer.io/"
 BASE = "EUR"
-CLIST_URL = "http://www.xe.com/iso4217.php"
-CLIST_DF = NA #To be initialized and loaded in cache
+
 
 
 ### FUNCIONS ##################################################################
 
 GetCurrNames = function() {
-  # Downloads currency list and abbreviations and returns a data frame
+  # Currency list and abbreviations
   
-  # cnx = getURL(CLIST_URL)
-  # doc = htmlParse(cnx, asText = TRUE)
-  # tbl = xpathSApply(doc, "//table[@id=\"currencyTable\"]/tbody/tr", xmlDoc)
-  # CTBL = as.data.frame(t(
-  #   sapply(
-  #     tbl, function(x) {xpathSApply(x, "//td", xmlValue)}
-  #   )
-  # ), stringsAsFactors = FALSE)
-  # names(CTBL) = c("Code", "Long_Name")
   CTBL = read.csv("currencies.csv", stringsAsFactors = FALSE)
-
   return(CTBL)
 }
 
@@ -40,31 +31,74 @@ GetRates = function(date = "latest") {
   # Rates are against EUR by default
   
   url = paste0(FIXER_URL, date, "?base=", BASE) 
-  ratelist = fromJSON(url)
+  RATELIST = fromJSON(url)
+  
+  DF = data.frame(label = names(RATELIST$rates),
+                  rate = unlist(RATELIST$rates),
+                  stringsAsFactors = FALSE,
+                  row.names = NULL)
+  DF = rbind(DF, 
+             data.frame(label = c(BASE),
+                        rate = c(1))
+  )
+  DF = DF[order(DF$label), ]
+  
+  return( list(Exchange = DF, 
+               Date = RATELIST$date)
+  )
+}
 
-  df = data.frame(
-      names(ratelist$rates), 
-      unlist(ratelist$rates), 
-      stringsAsFactors = FALSE, 
-      row.names = NULL)
-  names(df) = c("Currency", "Rate")
-  df = rbind(df, 
-             data.frame(
-               Currency = c(BASE), 
-               Rate = c(1))
-             )
-  df = df[order(df$Currency), ]
 
-  return( list(Exchange = df, 
-               Date = ratelist$date, 
-               Base = ratelist$base)
-        )
+
+GetMergedData = function(EXC0, EXC1) {
+  # Creates data with conversion rates at two time points
+  # Requires exchange rates with the same base
+  
+  # Inner join of data frames created
+  MERGED = merge(EXC0$Exchange, EXC1$Exchange, by = "label", all = FALSE)
+  names(MERGED)[2:3] = c("rate0", "rate1")
+  
+  # Get long names
+  LN = sapply(MERGED$label, function(x){
+    if (length(ALL_CLIST[ALL_CLIST$Code == x, "Long_Name"]) == 1){ 
+      ALL_CLIST[ALL_CLIST$Code == x, "Long_Name"]
+    } else {
+      "na"
+    } 
+  })
+  
+  MERGED$Long_Name = LN
+  MERGED = MERGED[order(MERGED$label), ]
+  return(MERGED)
+}
+
+
+
+ValueChanges = function(EXC) {
+  # calculates the change in the value of the currency
+  # assumes that the average value changes of all currencies equals to one
+  # Requires the data frame with conversion rates at two time points
+  
+  # All to all conversion rates
+  M1 = sapply(EXC$rate1, function(x) {EXC$rate1/x})
+  M0 = sapply(EXC$rate0, function(x) {EXC$rate0/x})
+  
+  # Ratio of conversion rates at the two time points
+  R01 = log(M1) - log(M0)
+  n = dim(EXC)[1]
+  
+  # Calculate the value changes of each currency from the averaged ratios
+  vchange = apply(R01, 2, function(x) {exp(sum(x)/n)})
+  vrank = as.integer(rank(-1 * vchange))
+  
+  # Returns percent change in the values
+  return(data.frame(label = EXC$label, index = vchange, rank = vrank, stringsAsFactors = F))
 }
 
 
 
 DistFunction = function(x, y) {
-
+  
   # Cosine similarity
   sim = sum(x * y)/sqrt(sum(x^2) * sum(y^2))
   
@@ -82,165 +116,84 @@ DistFunction = function(x, y) {
 
 
 
-GetDist = function(exc0, exc1) {
-  # Requires exchange rates at the same base
-  
-  # Inner join of data frames created
-  df = merge(exc0$Exchange, exc1$Exchange, by = "Currency", all = FALSE)
-  names(df)[2:3] = c("Rate0", "Rate1")
-  
-  # Get the long names of the currencies
-  if ( is.null(nrow(ALL_CLIST)) ) {
-    ALL_CLIST = GetCurrNames()
-  }
-  LN = sapply(df$Currency, function(x){
-                                      if (length(ALL_CLIST[ALL_CLIST$Code == x, "Long_Name"]) == 1){ 
-                                          ALL_CLIST[ALL_CLIST$Code == x, "Long_Name"]
-                                      } else {
-                                          "na"
-                                      } 
-                                      })
-  CD = data.frame(Code = df$Currency,
-                  Long_Name = unlist(LN),
-                  row.names = NULL)
+GetDist = function(EXC) {
+  # Calculates the distance matrix
+  # Requires the data frame with conversion rates at two time points
   
   # All to all conversion rates
-  m0 = sapply(df$Rate0, function(x) {df$Rate0/x})
-  m1 = sapply(df$Rate1, function(x) {df$Rate1/x})
+  M0 = sapply(EXC$rate0, function(x) {EXC$rate0/x})
+  M1 = sapply(EXC$rate1, function(x) {EXC$rate1/x})
   
   # Vectors of currency rate changes between time points
-  # The index is normalized to data at the second time point 
-  Diff = (m1 - m0)/m1
-
+  # Normalized to the data at the second time point
+  DIFF = (M1 - M0)/M1
+  
   # Obtain cosine distances between currencies
-  Dist = apply(Diff, 2, function(x) {apply(Diff, 2, function(y) {DistFunction(x, y)})})
-  rownames(Dist) = df$Currency
-  colnames(Dist) = df$Currency
-
-  rownames(Diff) = df$Currency
-  colnames(Diff) = df$Currency
+  DIST = apply(DIFF, 2, function(x) {apply(DIFF, 2, function(y) {DistFunction(x, y)})})
+  #rownames(Dist) = df$Currency
+  colnames(DIST) = EXC$label
+  rownames(DIST) = EXC$label
   
-  return( list(Difference = Diff,
-               Distance = Dist,
-               CodeDict = CD)
-  )
+  return(DIST)
+}
+
+
+GetDendro = function(DM, VC) {
+  hc = hclust(as.dist(DM), method = "average")
+  den = dendro_data(hc, type = "rectangle")
+  den$labels = merge(den$labels, VC, by = "label", sort = F)
+  ggden = ggplot() + 
+    geom_segment(data = segment(den), aes(x = x, y = y, xend = xend, yend = yend)) +
+    geom_text(data = label(den), aes(x, y, label = label, color = index), size = 5, hjust = 1, angle = 90, nudge_y = -0.02) +
+    scale_y_continuous(expand = c(0.2, 0), limits = c(-0.07, NA)) +
+    scale_color_gradient2(low = "blue", mid = "green", high = "red", midpoint = 1) +
+    theme(axis.line.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.text.x = element_blank(),
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(),
+          axis.text.y = element_text(size = 15),
+          panel.background = element_rect(fill = "white"),
+          panel.grid = element_blank()
+    )
+  return(ggden)
 }
 
 
 
-GetClosest = function(dist, curr, n=5) {
+GetClosest = function(DIST, VCH, EXC, curr, n=5) {
   # Returns the most similar currencies
+  # Requires the distance matrix
+  # Requires the value changes data frame
+  # Requires the data frame with conversion rates at two time points
+  # Requires a selected currency in 3 letter code format
   
-  toplist = dist$Distance[order(dist$Distance[, curr]), curr]
-  toplist_names = dist$CodeDict[order(dist$Distance[, curr]), ]
+  ord = order(DIST[, curr])
+  toplist_names = EXC[ord, c("label", "Long_Name")]
+  toplist_dist = DIST[ord, curr]
+  toplist_vch = VCH[ord, c("index", "rank")]
   
   
-  return(data.frame(Code = toplist_names$Code[2:(1 + n)],
-                    Currency = toplist_names$Long_Name[2:(1 + n)],
-                    Distance = toplist[2:(1 + n)],
-                    row.names = NULL)
+  return(data.frame(Label = toplist_names$label[1:(1 + n)],
+                    Currency = toplist_names$Long_Name[1:(1 + n)],
+                    Distance = toplist_dist[1:(1 + n)],
+                    Index = toplist_vch$index[1:(1 + n)],
+                    Rank = toplist_vch$rank[1:(1 + n)],
+                    row.names = NULL,
+                    stringsAsFactors = F)
   )
-}
-
-# calculates the length of the vector
-vlen = function(dist) {
-  cn = dist$CodeDict$Code
-  cl = apply(dist$Difference, 2, function(x) { sqrt(sum(x^2)) })
-  cn = cn[order(cl, decreasing = T)]
-  cl = cl[order(cl, decreasing = T)]
-  return(data.frame(Code = cn, Clen = cl))
-}
-
-# calculates the momentum of the currency
-# sums up the changes relative to each currencies
-# sums up the number of currencies to which the given currency weakened
-vmom = function(dist) {
-  cn = dist$CodeDict$Code
-  cm = apply(dist$Difference, 2, function(x){ sum(x) })
-  cneg = apply(dist$Difference, 2, function(x){ sum(x < 0) })
-  cn = cn[order(cm, decreasing = T)]
-  cneg = cneg[order(cm, decreasing = T)]
-  cm = cm[order(cm, decreasing = T)]
-  return(data.frame(Code = cn, cmom = cm, cneg = cneg))
-}
-
-
-# calculates the change in the value of the currency
-# assumes that the average value changes of all currencies equals to one
-value_change = function(exc0, exc1) {
-  # Requires exchange rates at the same base
-  
-  # Inner join of data frames created
-  df = merge(exc0$Exchange, exc1$Exchange, by = "Currency", all = FALSE)
-  names(df)[2:3] = c("Rate0", "Rate1")
-  
-  # All to all conversion rates
-  m1 = sapply(df$Rate1, function(x) {df$Rate1/x})
-  m0 = sapply(df$Rate0, function(x) {df$Rate0/x})
-  rownames(m1) = df$Currency
-  colnames(m1) = df$Currency
-  rownames(m0) = df$Currency
-  colnames(m0) = df$Currency
-  
-  # Ratio of conversion rates at the two time points
-  r = m0/m1
-  n = dim(df)[1]
-  
-  # Calculate the value changes of each currency from the averaged ratios
-  vchange = apply(r, 2, function(x) {n/sum(x)})
-  
-  # Returns percent change in the values
-  return(data.frame(label = df$Currency, index = 100 * (vchange - 1)))
 }
 
 
 
 ### MAIN ######################################################################
-
 # 'Frankenshock' : 2015-01-15
 # Financial chrisis: 2008 September
+
 ALL_CLIST = GetCurrNames() 
-d0 = GetRates("2015-01-14")
-d1 = GetRates("2015-01-16")
-D = GetDist(d0, d1)
-V = value_change(d0, d1)
-#L = vlen(D)
-#M = vmom(D)
-GetClosest(D, "CHF")
-hc = hclust(as.dist(D$Distance))
-plot(as.dendrogram(hc))
-
-
-library(ggplot2)
-library(ggdendro)
-
-# extract properties of the dendrogram, rectangle type: rectangular lines drawn
-den = dendro_data(hc, type = "rectangle")
-#groups = cutree(hc, h = 0.5)
-#gdf = data.frame(label = names(groups), groups = factor(groups))
-#names(M) = c("label", "momentum", "weakness")
-den$labels = merge(den$labels, V, by = "label")
-
-hcplot = ggplot() + 
-  geom_segment(data = segment(den), aes(x = x, y = y, xend = xend, yend = yend)) +
-  geom_text(data = label(den), aes(x, y, label = label, color = index), size = 6, hjust = 1, angle = 90, nudge_y = -0.02) +
-  #coord_fixed(ratio = 0.5) +
-  #coord_flip() +
-  #scale_y_reverse(expand = c(0.5, 0)) +
-  scale_y_continuous(expand = c(0.2, 0), limits = c(-0.09, NA)) +
-  scale_color_gradient2(low = "blue", mid = "green", high = "red", midpoint = 0) +
-  theme(axis.line.x = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.text.x = element_blank(),
-        axis.title.x = element_blank(),
-        axis.title.y = element_blank(),
-        axis.text.y = element_text(size = 15),
-        panel.background = element_rect(fill = "white"),
-        panel.grid = element_blank()
-        )
-          
-hcplot
-
-
-
-
+d0 = GetRates("2016-05-22")
+d1 = GetRates("2016-05-26")
+ER = GetMergedData(d0, d1)
+V = ValueChanges(ER)
+Dist = GetDist(ER)
+GetDendro(Dist, V)
