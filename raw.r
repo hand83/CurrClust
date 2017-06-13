@@ -92,7 +92,7 @@ ValueChanges = function(EXC) {
   vrank = as.integer(rank(-1 * vchange))
   
   # Returns percent change in the values
-  return(data.frame(label = EXC$label, index = vchange, rank = vrank, stringsAsFactors = F))
+  return(data.frame(label = EXC$label, index = 100 * (vchange - 1), rank = vrank, stringsAsFactors = F))
 }
 
 
@@ -126,7 +126,8 @@ GetDist = function(EXC) {
   
   # Vectors of currency rate changes between time points
   # Normalized to the data at the second time point
-  DIFF = (M1 - M0)/M1
+  #DIFF = (M1 - M0)/M1
+  DIFF = log(M1) - log(M0)
   
   # Obtain cosine distances between currencies
   DIST = apply(DIFF, 2, function(x) {apply(DIFF, 2, function(y) {DistFunction(x, y)})})
@@ -143,16 +144,18 @@ GetDendro = function(DM, VC) {
   den = dendro_data(hc, type = "rectangle")
   den$labels = merge(den$labels, VC, by = "label", sort = F)
   ggden = ggplot() + 
-    geom_segment(data = segment(den), aes(x = x, y = y, xend = xend, yend = yend)) +
-    geom_text(data = label(den), aes(x, y, label = label, color = index), size = 5, hjust = 1, angle = 90, nudge_y = -0.02) +
-    scale_y_continuous(expand = c(0.2, 0), limits = c(-0.07, NA)) +
-    scale_color_gradient2(low = "blue", mid = "green", high = "red", midpoint = 1) +
+    geom_segment(data = segment(den), aes(x = x, y = y, xend = xend, yend = yend), size = 1) +
+    geom_text(data = label(den), aes(x, y, label = label, color = index), size = 6, hjust = 1, angle = 90, nudge_y = -0.02) +
+    scale_y_continuous(expand = c(0.1, 0), limits = c(-0.07, NA)) +
+    scale_color_gradient2(low = "blue", mid = "green", high = "red", midpoint = 0) +
     theme(axis.line.x = element_blank(),
           axis.ticks.x = element_blank(),
           axis.text.x = element_blank(),
           axis.title.x = element_blank(),
           axis.title.y = element_blank(),
-          axis.text.y = element_text(size = 15),
+          axis.text.y = element_text(size = 20),
+          legend.text = element_text(size = 16),
+          legend.title = element_text(size = 20),
           panel.background = element_rect(fill = "white"),
           panel.grid = element_blank()
     )
@@ -191,9 +194,16 @@ GetClosest = function(DIST, VCH, EXC, curr, n=5) {
 # Financial chrisis: 2008 September
 
 ALL_CLIST = GetCurrNames() 
-d0 = GetRates("2016-05-22")
-d1 = GetRates("2016-05-26")
+d0 = GetRates("2017-06-06")
+d1 = GetRates("2017-06-13")
 ER = GetMergedData(d0, d1)
 V = ValueChanges(ER)
 Dist = GetDist(ER)
-GetDendro(Dist, V)
+
+gd = GetDendro(Dist, V)
+gd
+GetClosest(Dist, V, ER, "EUR", 31)
+
+png("dendro.png", width = 640)
+gd
+dev.off()

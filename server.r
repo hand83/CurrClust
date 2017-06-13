@@ -104,7 +104,8 @@ GetDist = function(EXC) {
   
   # Vectors of currency rate changes between time points
   # Normalized to the data at the second time point
-  DIFF = (M1 - M0)/M1
+  #DIFF = (M1 - M0)/M1
+  DIFF = log(M1) - log(M0)
   
   # Obtain cosine distances between currencies
   DIST = apply(DIFF, 2, function(x) {apply(DIFF, 2, function(y) {DistFunction(x, y)})})
